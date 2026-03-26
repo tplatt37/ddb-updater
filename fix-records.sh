@@ -13,7 +13,7 @@ CSV_FILE=""
 usage() {
   echo "Usage: $0 [--write] <csv-file>"
   echo ""
-  echo "  <csv-file>   CSV whose first column contains the 'id' values to invalidate."
+  echo "  <csv-file>   CSV whose first column contains the 'id' values to fix."
   echo "  --write      Actually perform the DynamoDB update. Default is dry-run."
   exit 1
 }
@@ -56,7 +56,7 @@ ROW=0
 SKIPPED=0
 UPDATED=0
 NOT_FOUND=0
-ALREADY_INVALID=0
+NOT_INVALID=0
 
 while IFS=',' read -r id _rest; do
   # Strip surrounding whitespace and quotes
@@ -90,17 +90,17 @@ while IFS=',' read -r id _rest; do
     continue
   fi
 
-  # --- Already invalid? ---
-  if [[ "$RESOURCE_ID" == INVALID-* ]]; then
+  # --- Not invalid? Nothing to fix ---
+  if [[ "$RESOURCE_ID" != INVALID-* ]]; then
     echo "  [SKIP]       id='${id}'"
-    echo "               resourceid already starts with INVALID-: '${RESOURCE_ID}'"
-    (( ALREADY_INVALID++ )) || true
+    echo "               resourceid does not start with INVALID-: '${RESOURCE_ID}'"
+    (( NOT_INVALID++ )) || true
     continue
   fi
 
-  NEW_RESOURCE_ID="INVALID-${RESOURCE_ID}"
+  NEW_RESOURCE_ID="${RESOURCE_ID#INVALID-}"
 
-  echo "  [INVALIDATE] id='${id}'"
+  echo "  [FIX]        id='${id}'"
   echo "               old resourceid: '${RESOURCE_ID}'"
   echo "               new resourceid: '${NEW_RESOURCE_ID}'"
 
@@ -127,11 +127,11 @@ done < "$CSV_FILE"
 echo ""
 echo "------- Summary -------"
 echo "  Not found:        ${NOT_FOUND}"
-echo "  Already invalid:  ${ALREADY_INVALID}"
+echo "  Not invalidated:  ${NOT_INVALID}"
 if [[ "$WRITE_MODE" == true ]]; then
-  echo "  Updated:          ${UPDATED}"
+  echo "  Fixed:            ${UPDATED}"
 else
-  echo "  Would update:     ${SKIPPED}"
+  echo "  Would fix:        ${SKIPPED}"
   echo ""
   echo "  Re-run with --write to apply changes."
 fi
